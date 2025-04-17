@@ -41,10 +41,10 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Ensure base is staging
+      - name: Ensure base is main
         run: |
-          if [ "${{ steps.pr.outputs.base }}" != "staging" ]; then
-            echo "❌ Base branch is not 'staging'. Exiting."
+          if [ "${{ steps.pr.outputs.base }}" != "main" ]; then
+            echo "Base branch is not 'staging'. Exiting."
             exit 1
           fi
 
