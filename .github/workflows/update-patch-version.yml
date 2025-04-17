@@ -1,0 +1,53 @@
+name: Run Patch Version on PR Comment
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  run_patch_version:
+    if: |
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/update-patch-version')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: $(gh pr view ${{ github.event.issue.number }} --json headRefName -q .headRefName)
+          fetch-depth: 0
+
+      - name: Check if base is staging
+        run: |
+          BASE_BRANCH=$(gh pr view ${{ github.event.issue.pull_request.html_url }} --json baseRefName -q .baseRefName)
+          if [ "$BASE_BRANCH" != "staging" ]; then
+            echo "This PR is not targeting staging. Exiting."
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Fetch and merge staging
+        run: |
+          git fetch origin
+          git merge origin/staging --no-edit
+
+      - name: Bump patch version
+        run: npm version patch --no-git-tag-version
+
+      - name: Commit and push version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "パッチバージョンアップ" || echo "No changes"
+          git push
