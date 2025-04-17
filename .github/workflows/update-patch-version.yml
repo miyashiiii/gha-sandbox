@@ -44,7 +44,7 @@ jobs:
       - name: Ensure base is main
         run: |
           if [ "${{ steps.pr.outputs.base }}" != "main" ]; then
-            echo "Base branch is not 'staging'. Exiting."
+            echo "Base branch is not 'main'. Exiting."
             exit 1
           fi
 
@@ -53,10 +53,10 @@ jobs:
         with:
           node-version: "18"
 
-      - name: Fetch and merge staging
+      - name: Fetch and merge main
         run: |
           git fetch origin
-          git merge origin/staging --no-edit
+          git merge origin/main --no-edit
 
       - name: Bump patch version
         run: npm version patch --no-git-tag-version
