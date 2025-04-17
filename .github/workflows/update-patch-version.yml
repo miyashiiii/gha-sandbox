@@ -1,4 +1,4 @@
-name: Manual Patch Version
+name: Manual or Comment Patch Version
 
 on:
   workflow_dispatch:
@@ -8,24 +8,39 @@ on:
         required: true
         type: number
 
+  issue_comment:
+    types: [created]
+
 permissions:
   contents: write
   pull-requests: read
 
 jobs:
   patch_version:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       startsWith(github.event.comment.body, '/update-patch-version'))
     runs-on: ubuntu-latest
-
     steps:
+      - name: Determine PR number
+        id: pr
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "pr_number=${{ inputs.pr_number }}" >> $GITHUB_OUTPUT
+          else
+            echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Install GitHub CLI
         run: sudo apt-get update && sudo apt-get install -y gh
 
       - name: Get PR info
-        id: pr
+        id: info
         run: |
-          gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
-          pr_data=$(gh pr view ${{ inputs.pr_number }} --json headRefName,baseRefName,headRepositoryOwner,headRepository -q "{ref: .headRefName, base: .baseRefName, owner: .headRepositoryOwner.login, repo: .headRepository.name}")
-          echo "$pr_data"
+          repo="${{ github.repository }}"
+          pr_data=$(gh pr view ${{ steps.pr.outputs.pr_number }} --repo "$repo" --json headRefName,baseRefName,headRepositoryOwner,headRepository -q "{ref: .headRefName, base: .baseRefName, owner: .headRepositoryOwner.login, repo: .headRepository.name}")
           echo "ref=$(echo $pr_data | jq -r .ref)" >> $GITHUB_OUTPUT
           echo "base=$(echo $pr_data | jq -r .base)" >> $GITHUB_OUTPUT
           echo "owner=$(echo $pr_data | jq -r .owner)" >> $GITHUB_OUTPUT
@@ -36,15 +51,15 @@ jobs:
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.pr.outputs.ref }}
-          repository: ${{ steps.pr.outputs.owner }}/${{ steps.pr.outputs.repo }}
+          ref: ${{ steps.info.outputs.ref }}
+          repository: ${{ steps.info.outputs.owner }}/${{ steps.info.outputs.repo }}
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Ensure base is staging
+      - name: Ensure base is main
         run: |
-          if [ "${{ steps.pr.outputs.base }}" != "staging" ]; then
-            echo "❌ Base branch is not 'staging'. Exiting."
+          if [ "${{ steps.info.outputs.base }}" != "main" ]; then
+            echo "Base branch is not 'main'. Exiting."
             exit 1
           fi
 
@@ -53,10 +68,10 @@ jobs:
         with:
           node-version: "18"
 
-      - name: Fetch and merge staging
+      - name: Fetch and merge main
         run: |
           git fetch origin
-          git merge origin/staging --no-edit
+          git merge origin/main --no-edit
 
       - name: Bump patch version
         run: npm version patch --no-git-tag-version
