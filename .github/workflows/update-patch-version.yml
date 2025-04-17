@@ -23,7 +23,8 @@ jobs:
       - name: Get PR info
         id: pr
         run: |
-          pr_data=$(gh pr view ${{ inputs.pr_number }} --json headRefName,baseRefName,headRepositoryOwner,headRepository -q "{ref: .headRefName, base: .baseRefName, owner: .headRepositoryOwner.login, repo: .headRepository.name}")
+          repo="${{ github.repository }}"
+          pr_data=$(gh pr view ${{ inputs.pr_number }} --repo "$repo" --json headRefName,baseRefName,headRepositoryOwner,headRepository -q "{ref: .headRefName, base: .baseRefName, owner: .headRepositoryOwner.login, repo: .headRepository.name}")
           echo "$pr_data"
           echo "ref=$(echo $pr_data | jq -r .ref)" >> $GITHUB_OUTPUT
           echo "base=$(echo $pr_data | jq -r .base)" >> $GITHUB_OUTPUT
