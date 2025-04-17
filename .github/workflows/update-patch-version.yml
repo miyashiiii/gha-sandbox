@@ -1,37 +1,54 @@
-name: Run Patch Version on PR Comment
+name: Manual Patch Version
 
 on:
-  issue_comment:
-    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull Request number"
+        required: true
+        type: number
+
+permissions:
+  contents: write
+  pull-requests: read
 
 jobs:
-  run_patch_version:
-    if: |
-      github.event.issue.pull_request &&
-      startsWith(github.event.comment.body, '/update-patch-version')
+  patch_version:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: read
 
     steps:
-      - name: Checkout PR branch
-        uses: actions/checkout@v4
-        with:
-          ref: $(gh pr view ${{ github.event.issue.number }} --json headRefName -q .headRefName)
-          fetch-depth: 0
+      - name: Install GitHub CLI
+        run: sudo apt-get update && sudo apt-get install -y gh
 
-      - name: Check if base is staging
+      - name: Get PR info
+        id: pr
         run: |
-          BASE_BRANCH=$(gh pr view ${{ github.event.issue.pull_request.html_url }} --json baseRefName -q .baseRefName)
-          if [ "$BASE_BRANCH" != "staging" ]; then
-            echo "This PR is not targeting staging. Exiting."
-            exit 1
-          fi
+          gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
+          pr_data=$(gh pr view ${{ inputs.pr_number }} --json headRefName,baseRefName,headRepositoryOwner,headRepository -q "{ref: .headRefName, base: .baseRefName, owner: .headRepositoryOwner.login, repo: .headRepository.name}")
+          echo "$pr_data"
+          echo "ref=$(echo $pr_data | jq -r .ref)" >> $GITHUB_OUTPUT
+          echo "base=$(echo $pr_data | jq -r .base)" >> $GITHUB_OUTPUT
+          echo "owner=$(echo $pr_data | jq -r .owner)" >> $GITHUB_OUTPUT
+          echo "repo=$(echo $pr_data | jq -r .repo)" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Node.js
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.ref }}
+          repository: ${{ steps.pr.outputs.owner }}/${{ steps.pr.outputs.repo }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Ensure base is staging
+        run: |
+          if [ "${{ steps.pr.outputs.base }}" != "staging" ]; then
+            echo "❌ Base branch is not 'staging'. Exiting."
+            exit 1
+          fi
+
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "18"
