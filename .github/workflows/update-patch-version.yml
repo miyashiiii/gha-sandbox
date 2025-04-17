@@ -1,0 +1,70 @@
+name: Manual Patch Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull Request number"
+        required: true
+        type: number
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  patch_version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install GitHub CLI
+        run: sudo apt-get update && sudo apt-get install -y gh
+
+      - name: Get PR info
+        id: pr
+        run: |
+          gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
+          pr_data=$(gh pr view ${{ inputs.pr_number }} --json headRefName,baseRefName,headRepositoryOwner,headRepository -q "{ref: .headRefName, base: .baseRefName, owner: .headRepositoryOwner.login, repo: .headRepository.name}")
+          echo "$pr_data"
+          echo "ref=$(echo $pr_data | jq -r .ref)" >> $GITHUB_OUTPUT
+          echo "base=$(echo $pr_data | jq -r .base)" >> $GITHUB_OUTPUT
+          echo "owner=$(echo $pr_data | jq -r .owner)" >> $GITHUB_OUTPUT
+          echo "repo=$(echo $pr_data | jq -r .repo)" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.ref }}
+          repository: ${{ steps.pr.outputs.owner }}/${{ steps.pr.outputs.repo }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Ensure base is staging
+        run: |
+          if [ "${{ steps.pr.outputs.base }}" != "staging" ]; then
+            echo "❌ Base branch is not 'staging'. Exiting."
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Fetch and merge staging
+        run: |
+          git fetch origin
+          git merge origin/staging --no-edit
+
+      - name: Bump patch version
+        run: npm version patch --no-git-tag-version
+
+      - name: Commit and push version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "パッチバージョンアップ" || echo "No changes"
+          git push
