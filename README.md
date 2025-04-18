@@ -1,3 +1,3 @@
 # gha-sandbox
 
-This is sandbox repository
+This is sandbox repository.
