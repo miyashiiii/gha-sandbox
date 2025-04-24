@@ -43,3 +43,4 @@ jobs:
           npm version patch --no-git-tag-version
           git add package.json package-lock.json
           git commit -m "Bump patch version to ${{ steps.version.outputs.new_version }}"
+          git push origin staging
