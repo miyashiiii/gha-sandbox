@@ -1,0 +1,45 @@
+name: Bump Patch Version
+
+on:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: write
+
+jobs:
+  patch_version:
+    if: | 
+       github.head_ref == 'staging' && 
+        github.event.label.name == 'bump patch version'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        id: pr
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+      - name: Fetch and merge staging
+        run: |
+          git fetch origin
+          git merge origin/staging --no-edit || {
+            echo "Merge conflict detected."
+            exit 1;
+          }
+      - name: Bump patch version and get new version
+        id: version
+        run: |
+          NEW_VERSION=$(npm version patch --no-git-tag-version)
+          echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: 
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          npm version patch --no-git-tag-version
+          git add package.json package-lock.json
+          git commit -m "Bump patch version to ${{ steps.version.outputs.new_version }}"
