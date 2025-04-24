@@ -49,7 +49,7 @@ jobs:
           git push origin staging
 
   revert_bump_patch_version:
-    needs: patch_version
+    needs: bump_patch_version
     if: github.event.action == 'unlabeled' &&
         github.head_ref == 'staging' &&
         github.event.label.name == 'bump patch version'
