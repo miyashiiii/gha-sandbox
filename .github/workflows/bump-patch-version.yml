@@ -68,5 +68,5 @@ jobs:
          git config user.email "github-actions[bot]@users.noreply.github.com"
          git fetch origin
          git switch staging
-         git log --grep='^bump' --pretty=format:"%H" -n 1 | xargs git revert --no-edit
+         git log --grep='^Bump' --pretty=format:"%H" -n 1 | xargs git revert --no-edit
          git push origin staging
