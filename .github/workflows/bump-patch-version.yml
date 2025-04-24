@@ -26,6 +26,7 @@ jobs:
       - name: Fetch and merge staging
         run: |
           git fetch origin
+          git switch staging
           git merge origin/staging --no-edit || {
             echo "Merge conflict detected."
             exit 1;
